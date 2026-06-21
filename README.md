@@ -173,7 +173,7 @@ All stored colorings are JSON files with fields:
 
 ```
 scripts/
-  ramsey_circulant.py     Exhaustive circulant proof (Theorems 1 & 2)
+  ramsey_circulant.py     Exhaustive circulant proof (Theorem 1: K₄₂, Theorem 3: K₄₃)
   ramsey_symmetry.py      Z₂₁ bi-circulant / Z₇ / K₄₃ tabu search
   ramsey_cayley.py        Cayley graph search (D₂₁, Z₇×S₃, F₄₂)
   ramsey_sat.py           DIMACS CNF encoder for kissat
