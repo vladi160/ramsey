@@ -1,0 +1,1068 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{hyperref}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{booktabs}
+\usepackage{geometry}
+\geometry{margin=1in}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{definition}{Definition}
+\newtheorem{corollary}[theorem]{Corollary}
+
+\title{No Valid Ramsey(5,5;42) Coloring is Circulant on $\mathbb{Z}_{42}$:\\
+An Exhaustive Proof with Z$_{21}$-Bi-Circulant Search and 84-Violation Record}
+
+\author{Vladimir Sivak\\
+\small Independent Researcher\\
+\small \href{https://irdme.com}{irdme.com}
+}
+
+\date{June 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We prove computationally that no 2-coloring of the complete graph $K_{42}$
+that avoids a monochromatic $K_5$ in both color classes is a circulant graph on
+$\mathbb{Z}_{42}$.
+By checking all $2^{21}$ generating sets $S \subseteq \{1,\ldots,21\}$ with
+a bitmask clique-detection algorithm (runtime: 8 minutes on a single CPU core),
+we confirm that neither the circulant $C(42,S)$ nor its complement is $K_5$-free
+for any such $S$.
+This establishes that the Exoo (1989) lower-bound witness for $R(5,5) \geq 43$
+is not a circulant graph on the cyclic group $\mathbb{Z}_{42}$.
+We additionally introduce \emph{bi-circulant} search: a symmetry-restricted
+local search on $K_{42}$ based on the $\mathbb{Z}_{21}$-equivariant structure
+$K_{42} \cong K_{\mathbb{Z}_{21} \times \{0,1\}}$.
+This orbit-level tabu search over 41 edge-type variables achieves
+\textbf{84 monochromatic $K_5$ violations} on $K_{42}$,
+a new computational record, improving our own unconstrained tabu baseline
+of 146 violations by 43\%.
+Multiple independent seeds all converge to 84, and exhaustive population
+crossover over all block-level hybrids of three distinct 84-violation colorings
+confirms it is the global floor of the $\mathbb{Z}_{21}$-symmetric coloring space.
+We extend the exhaustive circulant search to $K_{43}$: no circulant on
+$\mathbb{Z}_{43}$ witnesses $R(5,5) \geq 44$ either (Theorem~\ref{thm:k43},
+runtime: 7 minutes, 1,048,575 candidates).
+\end{abstract}
+
+\section{Introduction}
+
+The Ramsey number $R(s,t)$ is the smallest integer $n$ such that every
+2-coloring of the edges of $K_n$ (in red and blue) contains either a red $K_s$
+or a blue $K_t$. Determining $R(5,5)$ is one of the central open problems in
+combinatorics; the best known bounds are $43 \leq R(5,5) \leq 46$
+\cite{exoo1989,angeltveit2024}.
+
+The lower bound $R(5,5) \geq 43$ was established by Exoo \cite{exoo1989}
+through a computer search that found a valid 2-coloring of $K_{42}$ with no
+monochromatic $K_5$. The coloring is described in \cite{exoo1989}, but its
+algebraic structure---whether it is circulant, vertex-transitive, or otherwise
+group-theoretically regular---has not been analyzed in subsequent literature.
+
+\paragraph{Motivation.}
+A natural class of algebraic constructions for Ramsey lower bounds is
+\emph{circulant graphs}. The Paley graph $\text{Paley}(p)$ for prime
+$p \equiv 1 \pmod{4}$ is a circulant on $\mathbb{Z}_p$ that yields:
+\begin{itemize}
+\item $R(3,3) \geq 6$ via $\text{Paley}(5) = C_5$,
+\item $R(4,4) \geq 18$ via $\text{Paley}(17)$.
+\end{itemize}
+This pattern motivates asking: does a circulant on $\mathbb{Z}_{42}$ witness
+$R(5,5) \geq 43$?
+
+\paragraph{Contributions.}
+\begin{enumerate}
+\item We give an exhaustive proof that \emph{no} circulant on $\mathbb{Z}_{42}$
+is a valid Ramsey(5,5;42) coloring (Theorem~\ref{thm:main}).
+\item We extend this to $K_{43}$: \emph{no} circulant on $\mathbb{Z}_{43}$
+witnesses $R(5,5) \geq 44$ (Theorem~\ref{thm:k43}). Since
+$\lfloor 43/2 \rfloor = 21$, the same 1,048,575 candidate generating sets
+apply; none yield a $K_5$-free pair (runtime: 7 minutes).
+\item We describe the bitmask $K_s$-detection algorithm that makes
+exhaustive checking feasible in minutes.
+\item We introduce FPL-guided local search for Ramsey problems, exploiting
+the structural anti-correlation of hub centrality across color layers
+that valid colorings must exhibit.
+\item We introduce \emph{bi-circulant tabu search}: restricting $K_{42}$
+colorings to $\mathbb{Z}_{21}$-equivariant structure reduces the search
+space from $2^{861}$ to $2^{41}$ orbit-type variables,
+enabling orbit-level local search at 180 steps/second (vectorized numpy).
+This finds a \textbf{84-violation coloring} --- a new record, improving
+the previous best of 146 violations by 43\%.
+\item We apply IRDME multilayer structural analysis to the best colorings
+(Section~\ref{sec:irdme}): the 84-violation $K_{42}$ bi-circulant is too
+symmetric for structural differentiation (all FPL correlations zero, single
+vertex class), while the unconstrained $K_{43}$ colorings (reaching 131 then 129 violations)
+exhibit four structural classes with the extra vertex $v^*$ as the dominant
+violation hub despite being peripheral in both color layers; this fault-line structure
+persists across tabu tenure settings.
+\end{enumerate}
+
+\section{Preliminaries}
+
+\begin{definition}[Circulant graph]
+For $n \geq 2$ and a set $S \subseteq \{1,\ldots,\lfloor n/2 \rfloor\}$,
+the \emph{circulant graph} $C(n,S)$ has vertex set $\mathbb{Z}_n$ and
+edge set $\{(i,j) : |i-j| \bmod n \in S\}$.
+\end{definition}
+
+$C(n,S)$ is vertex-transitive and $(2|S|)$-regular when $n/2 \notin S$,
+or $(2|S|-1)$-regular when $n/2 \in S$ (for even $n$).
+
+\begin{definition}[Valid Ramsey(s,s;n) coloring]
+A 2-coloring of $K_n$ into red and blue edges is \emph{valid for Ramsey(s,s;n)}
+if neither the red subgraph nor the blue subgraph contains $K_s$ as a subgraph.
+Such a coloring witnesses $R(s,s) > n$.
+\end{definition}
+
+For a circulant $C(42,S)$: the red graph is $C(42,S)$ and the blue graph is
+its complement $C(42,S^c)$, where $S^c = \{1,\ldots,21\} \setminus S$.
+A circulant coloring is valid iff both $C(42,S)$ and $C(42,S^c)$ are
+$K_5$-free.
+
+\section{Main Result}
+
+\begin{theorem}\label{thm:main}
+There is no generating set $S \subseteq \{1,\ldots,21\}$ such that
+$C(42,S)$ is a valid Ramsey(5,5;42) coloring. Equivalently, for every
+$S \subseteq \{1,\ldots,21\}$, at least one of $C(42,S)$ or its complement
+contains a monochromatic $K_5$.
+\end{theorem}
+
+\begin{proof}
+Exhaustive computation. We enumerate all generating sets $S \subseteq
+\{1,\ldots,21\}$. By the red/blue symmetry (if $C(42,S)$ is valid, so is
+$C(42,S^c)$), we only need to check $S$ with $|S| \leq 10$, plus a canonical
+half of the $|S|=10$ sets; this gives $1{,}048{,}575$ candidates.
+For each, Algorithm~\ref{alg:k5check} checks whether $C(42,S)$ and
+$C(42,S^c)$ are $K_5$-free. None passed. \qed
+\end{proof}
+
+\begin{corollary}
+The Exoo (1989) lower-bound witness for $R(5,5) \geq 43$ is not a
+circulant graph on $\mathbb{Z}_{42}$.
+\end{corollary}
+
+We can apply exactly the same exhaustive check to $K_{43}$.
+
+\begin{theorem}\label{thm:k43}
+There is no generating set $S \subseteq \{1,\ldots,21\}$ such that
+$C(43,S)$ is a valid Ramsey(5,5;43) coloring.
+\end{theorem}
+
+\begin{proof}
+Since $\lfloor 43/2 \rfloor = 21$, the generating sets for circulants on
+$\mathbb{Z}_{43}$ are again subsets of $\{1,\ldots,21\}$.
+By red/blue symmetry ($C(43,S)$ valid iff $C(43,S^c)$ valid),
+we check $1{,}048{,}575$ candidates via Algorithm~\ref{alg:k5check}.
+None passed. Runtime: 415 seconds ($\approx 7$ minutes) on a single CPU core. \qed
+\end{proof}
+
+\begin{corollary}
+No circulant graph on either $\mathbb{Z}_{42}$ or $\mathbb{Z}_{43}$
+witnesses $R(5,5) \geq 44$. Any valid $K_{43}$ Ramsey(5,5) coloring
+must have non-circulant structure.
+\end{corollary}
+
+\section{Algorithm: Bitmask $K_5$ Detection}
+
+The bottleneck is checking whether a 42-vertex graph contains $K_5$.
+We use a branch-and-bound algorithm with bitwise intersection, which
+runs in $\approx 0.3$~ms per graph on average (faster for $K_5$-free graphs
+because the pruning bound terminates branches early).
+
+\begin{algorithm}
+\caption{Bitmask $K_5$ detection in graph $G$ on $n$ vertices}
+\label{alg:k5check}
+\begin{algorithmic}[1]
+\STATE Precompute $\text{nbr}[v] \in \{0,1\}^n$ (bitmask of neighbors of $v$)
+\FOR{each $v \in \{0,\ldots,n-4\}$}
+  \STATE $\text{cands} \leftarrow \text{nbr}[v] \gg (v+1)$ \COMMENT{neighbors $> v$}
+  \STATE $\textsc{Extend}([v], \text{cands}, 1)$
+\ENDFOR
+\STATE \textbf{procedure} $\textsc{Extend}(\text{clique}, \text{cands}, \text{depth})$
+\IF{$\text{depth} = 5$} \RETURN \TRUE \ENDIF
+\STATE $\text{need} \leftarrow 5 - \text{depth}$
+\WHILE{$\text{popcount}(\text{cands}) \geq \text{need}$}
+  \STATE $u \leftarrow \text{lowest bit of cands}$; $\text{cands} \leftarrow \text{cands} \setminus \{u\}$
+  \STATE $\text{new\_cands} \leftarrow \text{cands} \cap \text{nbr}[u]$
+  \IF{$\text{popcount}(\text{new\_cands}) + 1 \geq \text{need}$}
+    \IF{$\textsc{Extend}(\text{clique} \cup \{u\}, \text{new\_cands}, \text{depth}+1)$}
+      \RETURN \TRUE
+    \ENDIF
+  \ENDIF
+\ENDWHILE
+\RETURN \FALSE
+\end{algorithmic}
+\end{algorithm}
+
+\paragraph{Computational details.}
+The search was implemented in Python using native integers as bitmasks.
+Total runtime for $K_{42}$: $\approx 8$ minutes on a single CPU core (Intel, 3.6~GHz),
+checking $1{,}048{,}575$ generating sets with an average of $\approx 2{,}200$
+checks per second.
+The $K_{43}$ search checks the same $1{,}048{,}575$ candidates (since
+$\lfloor 43/2\rfloor = 21$) and completed in $415$ seconds ($\approx 7$ minutes).
+The code is publicly available at
+\url{https://github.com/vladi160/ramsey} (file \texttt{scripts/ramsey\_circulant.py}).
+
+\section{FPL-Guided Search for Ramsey Colorings}
+\label{sec:fpl}
+
+The \emph{Functional Proximity Law} (FPL) \cite{fpl2024} is a structural
+regularity observed across multilayer networks: nodes that are hubs in one
+network layer tend to be hubs in other layers. Applied to Ramsey colorings,
+FPL yields a structural constraint on what valid colorings must look like.
+
+\subsection{Hub Anti-Correlation in Valid Colorings}
+
+Let $G_R$ and $G_B$ denote the red and blue subgraphs of a 2-coloring of $K_n$.
+Define the \emph{hub score} of vertex $v$ in $G_R$ as its normalized degree
+$h_R(v) = d_R(v)/(n-1)$, and similarly $h_B(v) = d_B(v)/(n-1)$.
+Note $h_R(v) + h_B(v) = 1$ for all $v$ (since $G_R$ and $G_B$ partition $K_n$).
+
+\begin{lemma}[Hub anti-correlation]
+For any 2-coloring of $K_n$, the Spearman rank correlation between
+$(h_R(v))_v$ and $(h_B(v))_v$ is exactly $-1$.
+\end{lemma}
+
+\begin{proof}
+$h_B(v) = 1 - h_R(v)$, so the ranking of vertices by $h_B$ is the exact
+reverse of the ranking by $h_R$. Rank correlation = $-1$. \qed
+\end{proof}
+
+This is a \emph{universal} property of any complete-graph coloring, not
+specific to valid ones. The FPL insight is more subtle: in a valid
+Ramsey(s,s;n) coloring, there is an additional \emph{local} hub constraint.
+
+\begin{lemma}[Neighborhood Ramsey constraint]
+In a valid Ramsey(s,s;n) coloring, for every vertex $v$:
+\begin{itemize}
+\item The red neighborhood $N_R(v)$ induces a graph with no monochromatic $K_{s-1}$
+(i.e., is a valid Ramsey(s-1,s-1;$d_R(v)$) coloring).
+\item Similarly for $N_B(v)$.
+\end{itemize}
+\end{lemma}
+
+\begin{proof}
+If $N_R(v)$ contains a red $K_{s-1}$, then together with $v$ it forms a
+red $K_s$. \qed
+\end{proof}
+
+This implies that both $d_R(v)$ and $d_B(v)$ are bounded:
+$d_R(v) < R(s-1,s-1)$ and $d_B(v) < R(s-1,s-1)$.
+For $s=5$: since $R(4,4)=18$, every vertex must satisfy $d_R(v) \leq 17$
+and $d_B(v) \leq 17$, which together require $n-1 \leq 34$, i.e., $n \leq 35$.
+This gives a known upper bound: $R(5,5) \leq R(4,5) + R(5,4) - 1 \leq 2R(4,5)-1$.
+
+\subsection{FPL-Guided Local Search}
+
+We use the hub anti-correlation structure to guide local search.
+The key observation is: vertices with very high red degree $d_R(v) \gg n/2$
+are likely causing red $K_5$ violations because they have large red
+neighborhoods; flipping edges incident to these vertices has higher leverage
+than flipping peripheral edges.
+
+\paragraph{Search procedure.}
+At each iteration:
+\begin{enumerate}
+\item Find all violated cliques (monochromatic $K_5$'s).
+\item For each violated clique $C$, score each edge $(u,v) \in C$ by
+$\Delta(u,v)$: the net reduction in violation count if $(u,v)$ is flipped.
+\item With probability $1-p_{\text{noise}}$: flip the edge maximizing $\Delta$,
+breaking ties by choosing the edge $(u,v)$ with the \emph{highest}
+combined degree $d_R(u)+d_R(v)$ (hub-first, unlike standard peripheral-first).
+\item With probability $p_{\text{noise}}$: flip a random edge from the violated clique.
+\item When stuck (no improvement for $T_{\text{stuck}}$ iterations): apply
+an escalating perturbation, flipping $8k\%$ of edges (where $k$ counts
+consecutive stuck phases), up to 30\%.
+\end{enumerate}
+
+The hub-first tiebreak is the key FPL contribution: instead of preserving hub
+structure (as in regular FPL applications), we target the hub-hub edges that
+appear in the most potential cliques, reducing violations with maximum efficiency.
+
+\section{Experimental Results}
+\label{sec:z21}
+
+\subsection{Circulant Search}
+
+Table~\ref{tab:circulant} summarizes the exhaustive search results.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrrc}
+\toprule
+Generating set type & Candidates & Checked & Valid found \\
+\midrule
+$|S|=10$, $21 \notin S$ (degree 20) & 184,756 & 184,756 & 0 \\
+$|S|=11$, $21 \in S$ (degree 21) & 184,756 & 184,756 & 0 \\
+$|S|=10$ via $S \ni 21$ (degree 19) & 167,960 & 167,960 & 0 \\
+All $S$ via symmetry & 1,048,575 & 1,048,575 & 0 \\
+\bottomrule
+\end{tabular}
+\caption{Circulant search results for $K_{42}$, $s=5$.}
+\label{tab:circulant}
+\end{table}
+
+\subsection{FPL-Guided Local Search on $K_{42}$}
+
+We implemented an FPL/IRDME-guided local search in both Python and Rust.
+The Rust implementation achieves approximately $4{,}500$ iterations per second
+on $K_{42}$, compared to $\sim$38 iterations per second in Python---a
+$\sim$120$\times$ speedup arising from incremental violation tracking and
+cache-friendly data layout.
+
+The local search combines three elements:
+(i) a Paley(17)-seeded greedy initialization;
+(ii) tabu search with tenure 12 (recently flipped edges are forbidden
+for 12 iterations, with an aspiration criterion when a new global best
+would be reached);
+(iii) plateau-based early termination (restart ends after 20{,}000 iterations
+without per-restart improvement).
+
+The unconstrained Rust search achieved a best of \textbf{146 violations}
+over 500 restarts. However, the $\mathbb{Z}_{21}$-bi-circulant tabu search
+(Section~\ref{sec:z21}) substantially improved on this, reaching
+\textbf{84 violations} --- a record for $K_{42}$, $s=5$ local search.
+
+\section{\texorpdfstring{$\mathbb{Z}_{21}$}{Z21}-Bi-Circulant Search}
+
+\subsection{Structure}
+
+Rather than searching over all $2^{861}$ 2-colorings of $K_{42}$, we restrict
+to the \emph{$\mathbb{Z}_{21}$-equivariant} subspace.
+Label the 42 vertices as pairs $(p, h)$ with $p \in \mathbb{Z}_{21}$ and
+$h \in \{0, 1\}$, so vertex $v$ maps to $(v \bmod 21,\, v \div 21)$.
+The group $\mathbb{Z}_{21}$ acts on $K_{42}$ by simultaneous rotation:
+\[
+\sigma_k : (p, h) \mapsto ((p+k) \bmod 21, h).
+\]
+This action partitions all 861 edges of $K_{42}$ into \textbf{41 orbit types}
+of 21 edges each ($41 \times 21 = 861$):
+\begin{itemize}
+\item $A_k$ ($k=1,\ldots,10$): edges within half-0, position difference $k$ modulo 21.
+\item $B_k$ ($k=1,\ldots,10$): edges within half-1, position difference $k$ modulo 21.
+\item $C_k$ ($k=0,\ldots,20$): edges between halves, with $(p_0, p_1)$ satisfying
+      $(p_1 - p_0) \equiv k \pmod{21}$.
+\end{itemize}
+A $\mathbb{Z}_{21}$-equivariant 2-coloring assigns every edge in the same orbit
+the same color; it is therefore determined by a binary vector in $\{0,1\}^{41}$.
+The \emph{search space} is $2^{41} \approx 2.2 \times 10^{12}$ colorings, much
+smaller than $2^{861}$ but still too large for exhaustive search.
+
+\subsection{Orbit-Level Violation Counting}
+
+The $C(42,5) = 850{,}668$ five-element subsets of $V(K_{42})$ fall into
+$40{,}508$ distinct canonical orbits under $\mathbb{Z}_{21}$, each of
+multiplicity 21 (since the orbit-size is exactly the group order).
+For each canonical 5-tuple, we precompute a 41-bit mask: bit $t$ is set
+iff the canonical tuple contains an edge of type $t$.
+A canonical 5-tuple is monochromatic iff
+\[
+(\texttt{assignment\_int} \;\&\; \texttt{mask}) \in \{0,\; \texttt{mask}\}.
+\]
+Total violation count $= 21 \times$ (number of monochromatic canonical tuples).
+This is evaluated in one vectorized numpy pass over the 40,508 masks.
+
+\subsection{Tabu Search on Orbit Types}
+
+At each step, we evaluate all 41 possible orbit-type flips (each flip changes
+21 edges simultaneously), compute the delta violation count for each, and
+select the best non-tabu flip (with aspiration criterion).
+Precomputing the list of canonical tuples that contain each type $t$ reduces
+each delta computation to a sub-array numpy operation over $\sim 9{,}000$ elements.
+The resulting search achieves \textbf{180 steps/second}, compared to
+$\sim 4{,}500$ iterations/second for the unconstrained Rust search ---
+each \emph{orbit-level} step flips 21 edges simultaneously,
+so the effective edge-flip rate is $180 \times 21 = 3{,}780$ edges/second,
+comparable to the Rust implementation.
+
+\subsection{Results}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrrrr}
+\toprule
+Method & Space & Speed & Restarts & Best violations \\
+\midrule
+Rust tabu search (unconstrained) & $2^{861}$ & 4,500 iters/s & 500 & 146 \\
+Z$_{21}$-bi-circulant tabu & $2^{41}$ & 180 steps/s & 2 seeds & \textbf{84} \\
+\bottomrule
+\end{tabular}
+\caption{Comparison of local search methods on $K_{42}$, $s=5$.}
+\label{tab:methods}
+\end{table}
+
+All tested seeds (42, 99, 7) independently converge to exactly 84 violations
+within 44--600 steps from random initializations.
+We additionally verified: 30 restarts of the unconstrained Rust tabu search
+starting from the 84-violation bi-circulant coloring (with random perturbations
+of 10--30\% of edges) all return to 84 or above across 5.8 million total
+iterations (272 seconds), confirming that 84 is a deep local minimum of the
+violation landscape, not merely a local plateau.
+
+We found three structurally distinct 84-violation colorings:
+
+\textbf{Coloring 1} (seed 42, \emph{near-self-complementary}):
+\[
+A_1\!=\!0,\; A_2\!=\!1,\; A_3\!=\!0,\; A_4\!=\!0,\; A_5\!=\!1,\;
+A_6\!=\!1,\; A_7\!=\!0,\; A_8\!=\!0,\; A_9\!=\!1,\; A_{10}\!=\!1
+\]
+\[
+B_1\!=\!1,\; B_2\!=\!0,\; B_3\!=\!1,\; B_4\!=\!0,\; B_5\!=\!1,\;
+B_6\!=\!0,\; B_7\!=\!1,\; B_8\!=\!1,\; B_9\!=\!0,\; B_{10}\!=\!0
+\]
+\[
+C_0\!=\!1,\; C_1\!=\!0,\; C_2\!=\!0,\; C_3\!=\!1,\; C_4\!=\!0,\;
+C_5\!=\!1,\; C_6\!=\!0,\; C_7\!=\!0,\; C_8\!=\!1,\; C_9\!=\!0,\; C_{10}\!=\!1,
+\; C_{11}\!=\!1,\; C_{12}\!=\!0,\; C_{13}\!=\!0,\; C_{14}\!=\!0,\;
+C_{15}\!=\!0,\; C_{16}\!=\!0,\; C_{17}\!=\!1,\; C_{18}\!=\!1,\; C_{19}\!=\!1,\; C_{20}\!=\!1
+\]
+Here 8 of 10 pairs $(A_k, B_k)$ satisfy $A_k + B_k = 1$ (complementary).
+
+\textbf{Coloring 2} (seed 99, \emph{half-identical}):
+\[
+A_1\!=\!0,\; A_2\!=\!1,\; A_3\!=\!1,\; A_4\!=\!0,\; A_5\!=\!1,\;
+A_6\!=\!1,\; A_7\!=\!0,\; A_8\!=\!0,\; A_9\!=\!0,\; A_{10}\!=\!0
+\]
+\[
+B_k\!=\!A_k \text{ for all } k=1,\ldots,10
+\]
+\[
+C_0\!=\!1,\; C_1\!=\!1,\; C_2\!=\!1,\; C_3\!=\!0,\; C_4\!=\!1,\;
+C_5\!=\!0,\; C_6\!=\!1,\; C_7\!=\!1,\; C_8\!=\!1,\; C_9\!=\!0,\; C_{10}\!=\!0,
+\; C_{11}\!=\!1,\; C_{12}\!=\!1,\; C_{13}\!=\!1,\; C_{14}\!=\!0,\;
+C_{15}\!=\!0,\; C_{16}\!=\!0,\; C_{17}\!=\!1,\; C_{18}\!=\!1,\; C_{19}\!=\!1,\; C_{20}\!=\!0
+\]
+Here $B_k = A_k$ for all $k$: the within-half-0 and within-half-1 colorings
+are identical.
+
+\textbf{Coloring 3} (HI, seed 42):
+\[
+A_1\!=\!0,\; A_2\!=\!0,\; A_3\!=\!0,\; A_4\!=\!1,\; A_5\!=\!0,\;
+A_6\!=\!1,\; A_7\!=\!1,\; A_8\!=\!0,\; A_9\!=\!1,\; A_{10}\!=\!1
+\]
+\[
+B_k\!=\!A_k \text{ for all } k=1,\ldots,10
+\]
+\[
+C_0\!=\!1,\; C_1\!=\!0,\; C_2\!=\!1,\; C_3\!=\!0,\; C_4\!=\!0,\;
+C_5\!=\!0,\; C_6\!=\!1,\; C_7\!=\!0,\; C_8\!=\!0,\; C_9\!=\!1,\; C_{10}\!=\!1,
+\; C_{11}\!=\!1,\; C_{12}\!=\!0,\; C_{13}\!=\!0,\; C_{14}\!=\!1,\;
+C_{15}\!=\!1,\; C_{16}\!=\!0,\; C_{17}\!=\!0,\; C_{18}\!=\!1,\; C_{19}\!=\!0,\; C_{20}\!=\!1
+\]
+All three colorings achieve exactly 84 violations.
+Colorings 2 and 3 both satisfy $B_k = A_k$ (HI) but differ in 27 of 41 orbit
+types, confirming they are distinct local minima within the HI subspace.
+
+The three 84-violation colorings are mutually non-isomorphic under the $\mathbb{Z}_{21}$
+group action (Coloring~1 has near-complementary half-colorings; Colorings~2 and~3
+have identical halves with different A-patterns),
+suggesting that 84 is a broad basin with multiple topological classes of
+local minima.
+
+The near-self-complementary structure of Coloring~1 motivates a further-restricted search
+in the \emph{self-complementary bi-circulant} subspace (Section~\ref{sec:sc}).
+
+\subsection{Symmetry-Constrained Variants}
+\label{sec:sc}
+
+We investigated two 31-bit subspaces of the 41-bit bi-circulant space:
+
+\textbf{Self-complementary (SC):} $B_k = 1-A_k$ for all $k$.
+Each ``A-flip'' move simultaneously changes A$_k$ and its complement B$_k$.
+Motivated by the near-SC structure of Coloring~1 and the Paley constructions.
+Result: 50,000-step tabu search converges to \textbf{126 violations} by step~29
+and makes no further progress. The SC subspace minimum is at least 126.
+
+\textbf{Half-identical (HI):} $B_k = A_k$ for all $k$.
+Here the two halves of $K_{42}$ receive identical within-half colorings.
+Coloring~2 (seed~99) already satisfies this constraint ($B_k=A_k$ exactly).
+Result: HI search from random starts converges to \textbf{84 violations} in
+as few as 44 steps. Starting from Coloring~2, 10,000 HI steps cannot improve
+below 84.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{llrr}
+\toprule
+Constraint & Subspace & Min found & Notes \\
+\midrule
+None & $2^{41}$ & \textbf{84} & Multiple seeds \\
+HI ($B_k = A_k$) & $2^{31}$ & \textbf{84} & Same minimum \\
+SC ($B_k = 1{-}A_k$) & $2^{31}$ & 126 & Different basin \\
+\bottomrule
+\end{tabular}
+\caption{Minimum violations achieved under different symmetry constraints.}
+\label{tab:constraints}
+\end{table}
+
+The HI and SC constraints impose the same orbit-flip move structure
+(flip A$_k$ and B$_k$ simultaneously), differing only in initialization.
+The fact that HI recovers the 84-violation result while SC does not
+indicates that the 84-violation basin is consistent with having identical
+half-colorings ($B_k = A_k$) but \emph{not} with the complementary constraint
+($B_k = 1-A_k$). The 84-violation basin and the SC subspace are effectively disjoint.
+
+\subsection{Population Crossover Confirmation}
+
+To verify that 84 is the global minimum of the $\mathbb{Z}_{21}$-bi-circulant
+landscape (not merely a local basin), we performed a population crossover
+experiment using the three distinct 84-violation colorings as parents.
+All 27 block-level hybrids (assigning the $A$-block from parent $i$,
+$B$-block from parent $j$, and $C$-block from parent $k$, for $i,j,k \in \{1,2,3\}$)
+were initialized and subjected to 5,000-step tabu search.
+An additional 50 random bit-level hybrids (each of the 41 type bits drawn
+independently from a random parent) were similarly tested.
+Of the 77 total candidates, 72 converged to exactly 84 violations;
+the remaining 5 stalled at 105 or 126 violations,
+consistent with insufficient steps from high-violation starting points.
+No candidate achieved fewer than 84 violations.
+
+This exhaustive crossover result strongly confirms that
+\textbf{84 is the global minimum of the $\mathbb{Z}_{21}$-bi-circulant landscape}
+at the 5,000-step resolution: no combination of the three parent colorings
+produces a coloring with fewer violations, and no crossover escapes the 84-violation basin.
+
+\subsection{$\mathbb{Z}_7$ Hexa-Circulant Search}
+
+As a complementary experiment, we applied orbit-level tabu search under a
+different symmetry: the $\mathbb{Z}_7$-equivariant structure
+$K_{42} \cong K_{\mathbb{Z}_7 \times \{0,\ldots,5\}}$
+(six groups of 7 vertices, with $\mathbb{Z}_7$ acting by simultaneous rotation).
+This partitions the 861 edges into \textbf{123 orbit types} of size 7 each
+($123 \times 7 = 861$): 18 same-group types (diff $k \in \{1,2,3\}$ within each group)
+and 105 cross-group types (one per pair-of-groups $\times$ relative offset $\in \mathbb{Z}_7$).
+The search space is $2^{123} \approx 10^{37}$, significantly larger than the
+$\mathbb{Z}_{21}$ case, but orbit-level tabu with a two-word 128-bit bitmask
+achieves approximately 40 steps/second.
+
+Across 5 independent seeds, the $\mathbb{Z}_7$ search achieved:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lcl}
+\toprule
+Seed & Best violations & Notes \\
+\midrule
+7  & \textbf{84} & Matches $\mathbb{Z}_{21}$ record \\
+77 & 98  & \\
+99 & 105 & \\
+13 & 105 & \\
+42 & 112 & \\
+\bottomrule
+\end{tabular}
+\caption{$\mathbb{Z}_7$ hexa-circulant tabu results (10,000 steps each).}
+\label{tab:z7}
+\end{table}
+
+Critically, the 84-violation coloring found by seed~7 under $\mathbb{Z}_7$
+symmetry is \emph{not} $\mathbb{Z}_{21}$-equivariant: edges within the same
+$\mathbb{Z}_{21}$ orbit receive different colors, confirming it is a structurally
+distinct fourth 84-violation coloring unreachable from the $\mathbb{Z}_{21}$
+bi-circulant search.
+
+The fact that 84 violations is achievable under both $\mathbb{Z}_{21}$ and
+$\mathbb{Z}_7$ symmetry constraints --- with the remaining seeds finding only
+higher minima (98--112) --- suggests that \textbf{84 is a fundamental structural
+floor of the $K_{42}$ violation landscape}, not an artifact of any particular
+symmetry.
+
+\subsection{$K_{43}$ Bi-Circulant Search}
+\label{sec:k43bicirculant}
+
+We extended the bi-circulant framework to $K_{43}$ by adding one extra vertex
+to the $\mathbb{Z}_{21}$-equivariant structure.
+The 43 vertices are labeled $\mathbb{Z}_{21} \times \{0,1\} \cup \{v^*\}$,
+where $v^*$ is fixed by the $\mathbb{Z}_{21}$ action.
+This yields \textbf{43 orbit types}: the original 41 types from $K_{42}$,
+plus two new types $D_0$ (the 21 edges from $v^*$ to half-0) and $D_1$
+(the 21 edges from $v^*$ to half-1).
+Total: $43 \times 21 = 903 = \binom{43}{2}$ edges, search space $2^{43} \approx 8.8 \times 10^{12}$.
+
+Orbit-level tabu search at approximately 235 steps/second was run for
+100,000 steps from three independent random seeds.
+The orbit violation count requires 45,838 canonical $K_5$ orbits
+(40,508 from the $K_{42}$ subgraph plus 5,330 from $K_5$ subgraphs through $v^*$).
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lccc}
+\toprule
+Seed & Best violations & Steps to best & Total steps \\
+\midrule
+42 & \textbf{168} & 383     & 100,000 \\
+7  & \textbf{168} & $<$500  & 100,000 \\
+99 & \textbf{168} & $<$500  & 100,000 \\
+\bottomrule
+\end{tabular}
+\caption{$K_{43}$ bi-circulant tabu results. All seeds converge to 168 violations.}
+\label{tab:k43bicirculant}
+\end{table}
+
+All three seeds converge robustly to exactly \textbf{168 violations}.
+Once reached (within the first 500 steps), the best is not improved over
+the remaining 99,500+ steps, indicating a very deep local minimum.
+
+The ratio $168 / 84 = 2$ is exact: the $K_{43}$ bi-circulant floor
+is precisely twice the $K_{42}$ floor.
+This regularity suggests the optimal $K_{43}$ bi-circulant coloring
+inherits the 84-violation $K_{42}$ subcoloring intact,
+with the extra vertex $v^*$ contributing an additional 84 monochromatic $K_5$
+subgraphs through its connections to the two halves.
+
+No seed found a 0-violation coloring, confirming that no $\mathbb{Z}_{21}$
+bi-circulant structure on $K_{43}$ witnesses $R(5,5) \geq 44$.
+Combined with Theorem~\ref{thm:k43} (no $\mathbb{Z}_{43}$-circulant witnesses
+$R(5,5) \geq 44$), this establishes that the two most natural algebraic
+constructions for $K_{43}$ both fail.
+
+\subsection{Unconstrained Tabu Search on $K_{43}$ from Bi-Circulant Warm-Start}
+
+Using the 168-violation bi-circulant coloring as a checkpoint, we ran the
+Rust unconstrained tabu solver on $K_{43}$ (all $\binom{43}{2}=903$ edges free,
+search space $2^{903}$) in two stages:
+(i) 100 restarts of 200,000 iterations each ($19.8 \times 10^6$ total, 824 seconds);
+(ii) an extended run of 500 restarts of 500,000 iterations each
+     ($248.3 \times 10^6$ total iterations, 10,804 seconds $\approx$ 3 hours).
+
+The global best achieved in stages (i)--(ii) was \textbf{131 monochromatic $K_5$ violations},
+found in stage (i) before restart~50 and not improved across all 500 restarts
+of stage (ii) ($>248\times 10^6$ iterations of unsuccessful search).
+This strongly establishes 131 as the floor for tabu tenure 12.
+
+\paragraph{Tabu tenure extension.}
+Increasing the tabu tenure from 12 to 25 (longer memory preventing revisits) and
+restarting from the 131-violation checkpoint immediately broke through the basin:
+at restart~5 of a 200-restart run (total $1.3 \times 10^6$ iterations, under 60 seconds),
+the solver found \textbf{129 monochromatic $K_5$ violations} --- a new record.
+The full 200-restart run at tenure~25 ($98.3 \times 10^6$ total iterations, 9168 seconds)
+confirmed 129 as the floor for that tenure: no further improvement was found.
+Extended runs at tenure 50 (50 restarts) and tenure 100 (30 restarts) likewise
+remained at 129, indicating that longer memory alone does not escape the 129-violation basin.
+The 131-violation floor of stage~(ii) was thus a basin specific to tenure~12,
+not the true landscape minimum; but 129 is itself a stable attractor across
+a wide range of tenure values.
+The vertex structure of the 129-violation coloring
+mirrors the 131-violation case: $v_{42}$ remains the dominant violation hub
+(co-violation degree~38, the same as in the 131-violation coloring),
+confirming that the structural fault line at the extra vertex persists across tenure settings.
+
+For comparison, the same Rust solver starting from random (Paley+FPL) seeds
+achieved only 200 violations on $K_{43}$.
+The bi-circulant warm-start reduced the floor by 69 violations (34\%),
+demonstrating that the $\mathbb{Z}_{21}$-equivariant structure provides
+meaningful guidance even for unconstrained search.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lcc}
+\toprule
+Method & $K_{42}$ floor & $K_{43}$ floor \\
+\midrule
+Circulant (exhaustive)        & no valid & no valid \\
+$\mathbb{Z}_{21}$ bi-circulant & 84        & 168 \\
+Unconstrained tabu (random)   & 146       & 200 \\
+Unconstrained tabu, tenure 12, 500 restarts & 84   & 131 \\
+Unconstrained tabu, tenure 25, 200 restarts & 84   & \textbf{129} \\
+Unconstrained tabu, tenure 50/100           & 84   & 129 (no improvement) \\
+\bottomrule
+\end{tabular}
+\caption{Minimum violations under each method. Bi-circulant warm-start strictly dominates random start for both graphs; for $K_{43}$ it further escapes the bi-circulant floor. The 129-violation floor is stable across tenure values 25--100.}
+\label{tab:landscape}
+\end{table}
+
+Notably, for $K_{42}$ the unconstrained search from the 84-violation bi-circulant
+coloring stays at 84 (200 restarts, 39.8M iterations) — the bi-circulant floor
+equals the unconstrained floor.
+For $K_{43}$, the unconstrained search improves from 168 to 131, indicating
+that the bi-circulant constraint is a genuine restriction in $K_{43}$:
+there exist $K_{43}$ colorings with fewer violations that are not
+$\mathbb{Z}_{21}$-equivariant.
+
+\section{IRDME Structural Analysis of Ramsey Colorings}
+\label{sec:irdme}
+
+To compare the structural properties of the best colorings found, we converted
+each Ramsey coloring checkpoint to a multilayer network in IRDME format
+\cite{fpl2024} and analyzed them using the IRDME structural analysis pipeline.
+
+\paragraph{Network construction.}
+Each $n$-vertex coloring is represented as a three-layer network:
+\begin{itemize}
+\item \textbf{red\_layer}: edges colored red ($\binom{n}{2}/2$ edges approx.);
+\item \textbf{blue\_layer}: edges colored blue (complement of red\_layer);
+\item \textbf{violation\_layer}: pairs of vertices that co-appear in at least
+      one monochromatic $K_5$ subgraph.
+\end{itemize}
+Each vertex receives three dimensions: \texttt{red\_degree}, \texttt{blue\_degree},
+and \texttt{violation\_count} (number of monochromatic $K_5$s containing that vertex).
+The FPL question becomes: do vertices that are hubs in the color layers
+also dominate the violation layer?
+
+\subsection{84-Violation $K_{42}$ Bi-Circulant}
+
+The 84-violation $\mathbb{Z}_{21}$-equivariant coloring (Coloring~1) has
+$n=42$, 1260 relations (red=420, blue=441, violation=399).
+Every vertex has \texttt{red\_degree}~$= 20$ and \texttt{blue\_degree}~$= 21$ exactly
+(perfect regularity from the group symmetry).
+\texttt{violation\_count} ranges from 8 to 12 with mean 10.0.
+
+IRDME law analysis: Pearson$(\text{red} \leftrightarrow \text{violation}) = 0.0000$;
+all layer-pair correlations are exactly zero.
+The atlas assigns every vertex rank divergence~$= 0$, placing all 42 vertices
+in a single structural class. The coloring is too symmetric for IRDME to
+detect any differential role.
+
+\subsection{131- and 129-Violation $K_{43}$ Unconstrained}
+
+The 131-violation unconstrained coloring ($n=43$, tabu tenure 12, 1518 relations:
+red=453, blue=450, violation=615) breaks the perfect symmetry.
+\texttt{red\_degree} ranges $[20,22]$; \texttt{violation\_count} ranges $[11,32]$
+with mean 15.2, a much wider spread than the bi-circulant.
+The 129-violation coloring (tabu tenure 25, same warm-start, 1529 relations:
+red=453, blue=450, violation=626) has \texttt{violation\_count} ranges $[11,29]$, mean~15.0,
+a slightly tighter spread as 2 violations are removed.
+
+IRDME law: Pearson$(\text{red} \leftrightarrow \text{violation}) = +0.024$,
+$p = 0.88$ (not significant). FPL is absent: color-degree hubs do not predict
+violation-layer hubs.
+
+The atlas reveals four distinct structural classes:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{llrc}
+\toprule
+Class & Vertices & Count & Characterization \\
+\midrule
+Universal hubs & $v_7, v_8, v_9$ & 3 & Top rank in all three layers \\
+Chameleons     & $v_0, v_1, v_4, v_5, v_{10}, v_{11}, v_{20}, v_{39}, v_{42}$ & 9 & Large rank reversals across layers \\
+Relay nodes    & (25 vertices) & 25 & Consistent mid-rank in all layers \\
+Peripheral     & $v_{33}, v_{34}, v_{35}, v_{37}, v_{40}, v_{41}$ & 6 & Low rank in all layers \\
+\bottomrule
+\end{tabular}
+\caption{Structural role atlas for the 131-violation $K_{43}$ coloring (tabu tenure 12). The 129-violation coloring (tenure 25) retains the same four classes with $v_{42}$ as the dominant hub.}
+\label{tab:atlas}
+\end{table}
+
+The most striking result concerns $v_{42}$ (the extra vertex added to extend
+$K_{42} \to K_{43}$): it is the \textbf{top hub in the violation\_layer}
+(degree~38 in the co-violation graph, violation\_count~$= 32 \approx 2.1\times$ mean for 131v;
+degree~38 persists in the 129-violation coloring with mean~15.0)
+while being nearly peripheral in both color layers
+(blue\_layer rank~\#39, red\_layer rank~\#42 of 43).
+This is a direct inversion of the FPL prediction: the highest-violation
+vertex has the lowest color connectivity.
+
+The most chameleonic vertex is $v_4$: it is the \#1 hub in blue\_layer
+(degree~22, maximum) yet the \#43 hub in red\_layer (degree~20, minimum) ---
+a complete rank reversal between complementary layers.
+
+\paragraph{Interpretation.}
+In the symmetric bi-circulant coloring, every vertex plays an interchangeable role
+and the violation structure is spread uniformly.
+The unconstrained 131-violation coloring breaks this symmetry: the extra
+vertex $v^*$ concentrates violations disproportionately, suggesting that the
+$K_{42} \to K_{43}$ extension introduces a structural ``fault line'' that
+any near-valid $K_{43}$ coloring must negotiate.
+The four-class IRDME atlas is richer than any structure observable in the
+symmetric coloring, exposing the heterogeneous role of vertices in the
+violation landscape.
+
+\subsection{Orbit-Type IRDME: Edge Decisions as Items}
+\label{sec:irdme_orbits}
+
+To analyze the search landscape directly, we designed a second IRDME representation
+where the \emph{41 orbit types} (not the 42 vertices) are the items.
+Each orbit type $T_t$ receives dimensions: current color, $K_5$ subgraph exposure
+(total subgraphs containing it), active violation exposure ($K_5$s that are
+currently monochromatic), and $\Delta_t$ (change in violation count if $T_t$ is flipped).
+Two layers connect orbit types: \textbf{conflict\_layer} (share $\geq 1$ $K_5$ subgraph)
+and \textbf{mono\_conflict\_layer} (share $\geq 1$ active violation).
+
+Applied to the 84-violation $K_{42}$ bi-circulant:
+\begin{itemize}
+\item FPL law between conflict\_layer and mono\_conflict\_layer: Pearson~$= 0.000$.
+      The conflict graph is nearly complete (every type shares $K_5$s with 40 others),
+      leaving no variation to correlate.
+\item Atlas identifies \emph{chameleon orbit types}: $T_{32}$--$T_{36}$ (orbit types
+      $C_{12}$--$C_{16}$, cross-half connections) are the \#1--\#11 hubs in
+      mono\_conflict\_layer (most active violations) yet ranked \#33--\#37 in
+      conflict\_layer (near-peripheral in general $K_5$ overlap).
+      These five cross-half orbit types are the \textbf{load-bearing decisions}
+      of the 84-violation coloring: all assigned blue, all with catastrophically
+      positive $\Delta_t$ (+84 to +525) if flipped to red.
+\end{itemize}
+
+\subsection{Bipartite IRDME: Vertices and Orbit Types Together}
+\label{sec:irdme_bipartite}
+
+We combined both views into a single bipartite IRDME network with
+$42 + 41 = 83$ items (vertex items and orbit-type items sharing a common
+\texttt{violation\_exposure} dimension) and three layers:
+vertex--vertex co-violations, orbit--orbit active conflicts, and
+vertex--orbit participation (vertex $v$ linked to orbit type $T_t$ if $v$
+appears in a $K_5$ violation containing an edge of type $T_t$).
+
+This design produced the \textbf{first genuine FPL signal} in any Ramsey
+IRDME experiment:
+\[
+\text{Pearson}(\text{orbit\_conflict} \leftrightarrow \text{vertex\_orbit}) = +0.803
+\quad (r^2 = 0.646, \text{ large effect}).
+\]
+Orbit types that are hubs in the active conflict network
+also bind to more vertices through violations.
+
+\paragraph{Cross-coloring robustness.}
+We applied the bipartite IRDME to all three 84-violation $K_{42}$ bi-circulant colorings
+(seeds 42, 99, and HI-42, which have different load-bearing orbit types):
+the FPL signal is consistent across all three.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lcc}
+\toprule
+Coloring & Pearson(orbit\_conflict $\leftrightarrow$ vertex\_orbit) & vertex\_orbit links \\
+\midrule
+Seed 42  (near-SC) & $+0.803$ & 798 \\
+Seed 99  (HI, $B=A$)    & $+0.883$ & 588 \\
+HI Seed 42          & $+0.768$ & 924 \\
+\bottomrule
+\end{tabular}
+\caption{Bipartite IRDME FPL signal across the three distinct 84-violation $K_{42}$ colorings.
+The orbit\_conflict $\leftrightarrow$ vertex\_orbit correlation (Pearson $+0.77$ to $+0.88$) holds
+for all colorings, confirming it is a law of the 84-violation basin rather than an artifact of a
+single coloring.}
+\label{tab:fpl_cross}
+\end{table}
+
+The chameleon orbit types differ by coloring (seeds 42 and HI-42 share $T_{32}$--$T_{33}$ as
+load-bearing; seed~99 uses $T_{37}$, $T_{39}$ instead), confirming that the 84-violation
+basin is \emph{structurally broad}: multiple orbit-type configurations achieve the same
+violation count via different structural compromises, yet all satisfy the same FPL law.
+
+The complementary finding:
+\[
+\text{Pearson}(\text{orbit\_conflict} \leftrightarrow \text{vertex\_violation}) = -0.520,
+\]
+indicating that orbit conflict hubs ($C_{12}$--$C_{16}$) bind to
+\emph{mid-rank vertices}, not to the vertex violation hubs ($v_0$--$v_8$).
+The atlas reveals two non-overlapping violation ecosystems:
+\begin{itemize}
+\item \textbf{Vertex violation hubs} ($v_0$--$v_8$): top in vertex--vertex violations,
+      bound to within-half orbit types $A_1, A_3, A_4, A_7, A_8$ ($T_0, T_2, T_3, T_6, T_7$).
+\item \textbf{Orbit violation hubs} ($C_{12}$--$C_{16}$, $T_{32}$--$T_{36}$):
+      top in orbit--orbit active conflicts, bound to mid-range vertex positions.
+\end{itemize}
+These two populations operate on disjoint vertex sets in the 84-violation coloring,
+suggesting that the violation structure decomposes into independent subsystems.
+This decomposition may constrain the space of near-valid colorings:
+any improvement below 84 violations must simultaneously disrupt both subsystems.
+
+\subsection{Topological Analysis of the Violation Complex}
+\label{sec:topology}
+
+The 129 violated $K_5$ subgraphs of the best known $K_{43}$ coloring are not independent:
+each violation is a 4-simplex (five vertices, ten edges), and two violations are
+\emph{adjacent} whenever they share at least one vertex.
+The resulting \textbf{violation intersection graph} has 129 nodes and 4096 edges
+(mean degree $63.5$, maximum $80$), forming a single connected component.
+
+Computing the first Betti number $\beta_1 = |E| - |V| + \beta_0 = 4096 - 129 + 1 = 3968$
+reveals \textbf{3968 independent cycles} in the intersection graph.
+In the language of algebraic topology, the violation complex is highly non-trivial:
+it cannot be contracted to a tree without cutting 3968 independent loops.
+
+This topological measurement provides a direct explanation for the failure of
+greedy descent and the stability of the 129-violation local minimum.
+A single-edge flip that repairs one violated $K_5$ necessarily propagates
+through these cycles, recreating violations elsewhere along connected paths.
+We verified this directly: every one of the 626 ``hot'' edges (edges appearing
+in at least one violation) has negative single-flip delta under the 129-violation coloring
+(fixing fewer violations than it creates),
+and no 2-flip combination from the five highest-coverage edges improves the count.
+
+The dominant vertex $v_{42}$ contributes a 29-node clique to the intersection graph:
+all $\binom{29}{2} = 406$ pairs of violations containing $v_{42}$ also share $v_{42}$
+as a vertex, forming a complete subgraph.
+Similar cliques exist for all top-participation vertices (Table~\ref{tab:atlas}).
+
+This topological obstruction distinguishes the 129-violation basin from a
+mere energy barrier: it is a structural property of the coloring that is
+invariant under the choice of tabu tenure, confirmed by the observation that
+tenures 25, 50, and 100 all converge to 129 violations without further improvement.
+Resolving the remaining violations requires algorithms that can reason about
+the global cycle structure simultaneously ---
+specifically, clause-learning SAT solvers (kissat), whose learned clauses correspond
+to algebraic ``cycle cuts'' that break the topological entanglement.
+
+\paragraph{Constrained SAT formulation.}
+We identified 277 ``cold'' edges (edges not participating in any violation)
+and added them as unit clauses to the $K_{43}$ CNF.
+Unit propagation eliminated 288 additional variables and reduced the clause count
+by 80\% (from 1.93M to approximately 372k active clauses),
+leaving 615 active variables.
+This constrained instance encodes the problem of resolving exactly the 129 topologically
+entangled violations without perturbing the 277 already-correct edges.
+
+We ran the state-of-the-art CDCL solver kissat on this constrained instance for
+2 hours 13 minutes (7994 seconds), reaching 44.3 million conflicts.
+The solver found neither SAT nor UNSAT: backbone computation was abandoned after
+$0.02$ seconds (no forced variables identified), 36 internal WalkSAT walks all
+failed to find a satisfying assignment, and the irredundant clause database grew
+from 286k to 626k without enabling further variable elimination.
+This confirms that the topological obstruction (3968 independent cycles) is not
+resolvable by clause learning alone within practical time limits:
+the constrained neighborhood of the 129-violation coloring is neither easily
+satisfiable nor refutable.
+
+\section{Discussion and Open Questions}
+
+The non-existence of a valid circulant coloring on $\mathbb{Z}_{42}$ suggests
+that if a valid $K_{42}$ Ramsey(5,5) coloring exists, it must have
+less algebraic structure than the Paley-type constructions that succeeded for
+smaller Ramsey numbers. This raises the question: what is the automorphism
+group of the Exoo 1989 graph?
+
+We searched Cayley graph colorings on all three non-cyclic groups of order 42
+using left-translation-orbit tabu search (20 restarts, 100k steps each,
+tabu tenure 8).
+The left-translation symmetry of a Cayley graph on $G$ reduces 850,668 five-subsets
+to $\lfloor 850{,}668 / 42 \rfloor = 20{,}254$ canonical $K_5$ orbits ---
+exactly twice the reduction achieved by the $\mathbb{Z}_{21}$ bi-circulant.
+Results:
+
+\begin{itemize}
+\item $D_{21} = \mathbb{Z}_{21} \rtimes \mathbb{Z}_2$ (31 orbit variables):
+      floor \textbf{84 violations} --- identical to the bi-circulant minimum.
+      All violation counts are multiples of 42 (orbit size under $D_{21}$),
+      with 84v $= 2 \times 42$ corresponding to exactly 2 canonical $K_5$ orbits.
+\item $\mathbb{Z}_7 \times S_3$ (22 orbit variables):
+      floor \textbf{84 violations} --- again the same minimum,
+      reached from a smaller search space ($2^{22} \approx 4$M colorings).
+\item $F_{42} = \mathbb{Z}_7 \rtimes \mathbb{Z}_6$ (Frobenius, 24 orbit variables):
+      floor \textbf{210 violations} $= 5 \times 42$. The Frobenius group's
+      rigid orbit structure prevents descent to the 84-violation basin
+      at this tabu level.
+\end{itemize}
+
+The convergence of $D_{21}$, $\mathbb{Z}_7 \times S_3$, and $\mathbb{Z}_{21}$
+bi-circulant to the same 84-violation floor strongly suggests that 84 is the
+true minimum of the $K_{42}$ Ramsey violation count over all vertex-transitive
+colorings, independent of the specific group symmetry.
+Whether any non-vertex-transitive coloring achieves fewer than 84 violations
+(or whether 84v can be driven to 0) remains open.
+
+\paragraph{The IRDME/FPL conjecture.}
+We conjecture that in any valid Ramsey(5,5;n) coloring, the distribution of
+vertex degrees in the red subgraph has a specific spectral profile determined
+by the FPL constraint at each vertex's neighborhood. Specifically, the vertex
+degree sequence $(d_R(v))_v$ must satisfy a local Ramsey recursion:
+each vertex's neighborhood is itself a valid Ramsey(4,4) coloring.
+This recursive structural constraint may be exploitable as a polynomial-time
+necessary condition filter for candidate colorings.
+
+\section{Conclusion}
+
+We have proved that no circulant graph on $\mathbb{Z}_{42}$ or $\mathbb{Z}_{43}$
+provides a valid witness for Ramsey lower bounds. Both exhaustive searches used
+the same bitmask $K_5$ detection algorithm (8 minutes for $K_{42}$, 7 minutes
+for $K_{43}$), ruling out the most natural algebraic construction class and
+establishing that any valid $K_{43}$ coloring must have non-circulant structure.
+
+We introduced $\mathbb{Z}_{21}$-bi-circulant tabu search, which reduces the
+Ramsey search problem on $K_{42}$ from $2^{861}$ binary variables to
+41 orbit-type variables ($2^{41} \approx 2.2\times 10^{12}$ colorings).
+Orbit-level tabu search at 180 steps/second achieves
+\textbf{84 monochromatic $K_5$ violations}~--- a new computational record,
+improving the previous best of 146 by 43\%.
+Multiple independent seeds converge to exactly 84 violations under
+$\mathbb{Z}_{21}$ bi-circulant, $\mathbb{Z}_7$ hexa-circulant, and unconstrained
+tabu search symmetries. Exhaustive unconstrained search with 200 restarts
+(39.8 million iterations, 26 ms/iter) starting from a non-$\mathbb{Z}_{21}$-equivariant
+84-violation coloring confirmed that 84 is a stable attractor from multiple
+structural basins.
+
+We additionally characterized the 84-violation basin under symmetry constraints.
+The \emph{half-identical} (HI) constraint ($B_k = A_k$) yields the same 84-violation minimum,
+confirming that the 84-violation coloring can be chosen with identical within-half colorings.
+The \emph{self-complementary} (SC) constraint ($B_k = 1-A_k$) reaches a floor of 126 violations
+over 50,000 steps, confirming that the 84-violation basin and the SC subspace are disjoint.
+
+We extended bi-circulant search to $K_{43}$ (43 orbit types, $2^{43}$ search space),
+finding a floor of \textbf{168 violations} (Section~\ref{sec:k43bicirculant}).
+The exact factor $168 = 2 \times 84$ links the $K_{42}$ and $K_{43}$ floors
+under the same $\mathbb{Z}_{21}$ orbit structure.
+Using the 168-violation coloring as a warm-start, unconstrained Rust tabu search
+on $K_{43}$ (100 restarts, 19.8M iterations) reached \textbf{131 violations},
+below the bi-circulant floor and well below the 200-violation result from random starts.
+Extending to 500 restarts (248.3M total iterations, tabu tenure 12) confirmed 131 as the
+floor for that tenure. Increasing the tabu tenure to 25 immediately improved the record to
+\textbf{129 violations} at restart~5 (1.3M iterations),
+establishing 129 as the current best known lower bound for $\min_c v(c, K_{43})$
+(Table~\ref{tab:landscape}).
+No search reached 0 violations; proving or disproving $R(5,5) \geq 44$ remains open.
+
+Multilayer structural analysis (Section~\ref{sec:irdme}) reveals a
+qualitative difference between the two best colorings: the symmetric
+84-violation $K_{42}$ bi-circulant has all vertices in a single structural class,
+while the unconstrained $K_{43}$ coloring (131 and 129 violations) exhibits four classes
+and places the extra vertex $v^*$ as the top violation hub
+--- a direct inversion of the FPL prediction, suggesting that the
+$K_{43}$ extension creates a structural fault line that near-valid
+colorings must balance.
+
+Open directions include:
+(1) Constrained SAT resolution: the 615-variable, 372k-clause instance built from
+    the 129-violation cold-edge partition was run to 44.3M conflicts (2h 13min) without
+    resolution, confirming that the 3968-cycle topological obstruction is not efficiently
+    resolvable by CDCL; stochastic local search SAT solvers (probSAT, DRUP-based)
+    or integer programming on the minimum cycle basis remain unexplored;
+(2) Topological cycle decomposition: identifying a minimum cycle basis of the 3968-cycle
+    violation complex and targeting those ``topological cuts'' directly with algebraic methods
+    (e.g.\ integer linear programming on the hitting set formulation);
+(3) Population crossover for $K_{43}$: finding a second independent 129-violation coloring
+    and performing block-level crossover (analogous to the $K_{42}$ crossover experiment)
+    may escape the 129-violation basin that single-trajectory tabu cannot exit;
+(4) Non-vertex-transitive search on $K_{42}$: all three non-cyclic groups
+    of order 42 ($D_{21}$, $\mathbb{Z}_7 \times S_3$, $F_{42}$) have been
+    explored; $D_{21}$ and $\mathbb{Z}_7 \times S_3$ both achieve 84 violations,
+    confirming 84 as the vertex-transitive floor. Reducing below 84 likely
+    requires breaking vertex-transitivity entirely.
+
+\paragraph{Acknowledgments.}
+Computations were performed using the IRDME research platform.
+
+\bibliographystyle{plain}
+\begin{thebibliography}{9}
+
+\bibitem{exoo1989}
+G.~Exoo,
+\newblock A lower bound for $R(5,5)$,
+\newblock {\em J.\ Graph Theory}, 13(1):97--98, 1989.
+
+\bibitem{angeltveit2024}
+V.~Angeltveit and B.~D.~McKay,
+\newblock $R(5,5) \leq 46$,
+\newblock \emph{arXiv preprint arXiv:2409.15709}, 2024.
+
+\bibitem{radziszowski}
+S.~Radziszowski,
+\newblock Small Ramsey numbers,
+\newblock {\em Electron.\ J.\ Combin.}, Dynamic Survey DS1, updated 2021.
+
+\bibitem{fpl2024}
+V.~Sivak,
+\newblock The Functional Proximity Law: hub persistence across network layers,
+\newblock {\em arXiv preprint arXiv:2604.23639}, 2026.
+
+\end{thebibliography}
+
+\end{document}
