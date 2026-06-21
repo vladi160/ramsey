@@ -15,9 +15,9 @@ Code and data accompanying the paper:
 |---|---|---|---|
 | No Z₄₂-circulant is Ramsey(5,5;42) valid | Exhaustive, 1,048,575 sets | ~8 min | `ramsey_circulant.py` |
 | No Z₄₃-circulant is Ramsey(5,5;43) valid | Same 1,048,575 sets | ~7 min | `ramsey_circulant.py` |
-| 84 K₅ violations on K₄₂ | Z₂₁ bi-circulant tabu | <3s per run | `ramsey_symmetry.py` |
-| 84v = vertex-transitive floor | D₂₁, Z₇×S₃, Z₇ all reach 84 | ~20 min each | `ramsey_cayley.py` |
-| 129 K₅ violations on K₄₃ | Unconstrained Rust tabu, tenure 25 | ~3 h | `rust/ramsey/` |
+| 84 K₅ violations on K₄₂ (§7.4) | Z₂₁ bi-circulant tabu | <3s per run | `ramsey_symmetry.py` |
+| 84v = vertex-transitive floor (§9) | D₂₁, Z₇×S₃, Z₇ all reach 84 | ~20 min each | `ramsey_cayley.py` |
+| 129 K₅ violations on K₄₃ (§7.9) | Unconstrained Rust tabu, tenure 25 | ~3 h | `rust/ramsey/` |
 
 ---
 
@@ -64,7 +64,7 @@ python scripts/ramsey_circulant.py --n 43 --s 5
 
 Expected output: `No valid Ramsey(5,5;N) circulant found. Checked 1048575 candidates.`
 
-### Section 7.2: Z₂₁ bi-circulant tabu (84-violation record)
+### §7.4: Z₂₁ bi-circulant tabu — 84-violation record
 
 ```bash
 # Seed 42 — reaches 84 within ~500 steps
@@ -76,7 +76,7 @@ python scripts/ramsey_symmetry.py --mode bicirculant --steps 5000 --tabu 8 --see
 
 Expected: `** NEW BEST: 84 violations` within 600 steps.
 
-### Section 7.2: Half-identical (HI) and self-complementary (SC) subspaces
+### §7.5: Half-identical (HI) and self-complementary (SC) subspaces
 
 ```bash
 # HI: same 84v floor
@@ -86,14 +86,7 @@ python scripts/ramsey_symmetry.py --mode hi --steps 10000 --tabu 8 --seed 42
 python scripts/ramsey_symmetry.py --mode sc --steps 50000 --tabu 8 --seed 42
 ```
 
-### Section 7.3: Z₇ hexa-circulant search
-
-```bash
-# Seed 7 reaches 84v (structurally distinct from Z₂₁ result)
-python scripts/ramsey_symmetry.py --mode z7 --steps 10000 --tabu 8 --seed 7
-```
-
-### Section 7.4: Population crossover (confirms 84v = global minimum)
+### §7.6: Population crossover (confirms 84v = global minimum)
 
 ```bash
 python scripts/ramsey_symmetry.py --mode crossover --steps-per 5000 --random-crosses 50
@@ -101,7 +94,26 @@ python scripts/ramsey_symmetry.py --mode crossover --steps-per 5000 --random-cro
 
 Expected: all 77 candidates converge to 84v; none below 84.
 
-### Section 8: Cayley graph search (D₂₁, Z₇×S₃, F₄₂)
+### §7.7: Z₇ hexa-circulant search
+
+```bash
+# Seed 7 reaches 84v (structurally distinct from Z₂₁ result)
+python scripts/ramsey_symmetry.py --mode z7 --steps 10000 --tabu 8 --seed 7
+```
+
+### §7.8: K₄₃ bi-circulant (floor 168v)
+
+```bash
+python scripts/ramsey_symmetry.py --mode k43 --steps 100000 --tabu 8 --seed 42
+```
+
+### §7.9: K₄₃ unconstrained Rust tabu (129v record)
+
+```bash
+# From 168v warm-start, tenure 25 — reaches 129v (requires Rust binary, see below)
+```
+
+### §9 (Discussion): Cayley graph search (D₂₁, Z₇×S₃, F₄₂)
 
 ```bash
 # D_21 — reaches 84v
@@ -114,14 +126,12 @@ python scripts/ramsey_cayley.py --group z7s3 --steps 100000 --restarts 20 --tabu
 python scripts/ramsey_cayley.py --group f42 --steps 100000 --restarts 20 --tabu 8
 ```
 
-### Section 7.5 / 7.6: K₄₃ bi-circulant and unconstrained search
+### §8: IRDME structural analysis
 
 ```bash
-# K_43 bi-circulant (floor 168v)
-python scripts/ramsey_symmetry.py --mode k43 --steps 100000 --tabu 8 --seed 42
-
-# K_43 unconstrained Rust tabu (requires building Rust binary, see below)
-# From 168v warm-start, tenure 25 — reaches 129v
+python scripts/ramsey_irdme.py --checkpoint datasets/RAMSEY_K42_S5_bicirculant_84v.json
+python scripts/ramsey_bipartite_to_irdme.py --checkpoint datasets/RAMSEY_K42_S5_bicirculant_84v.json
+python scripts/ramsey_orbits_to_irdme.py --checkpoint datasets/RAMSEY_K42_S5_bicirculant_84v.json
 ```
 
 ### Rust unconstrained tabu (fastest solver)
