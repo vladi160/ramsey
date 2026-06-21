@@ -15,10 +15,7 @@
 \title{No Valid Ramsey(5,5;42) Coloring is Circulant on $\mathbb{Z}_{42}$:\\
 An Exhaustive Proof with Z$_{21}$-Bi-Circulant Search and 84-Violation Record}
 
-\author{Vladi Ivanov\\
-\small IRDME Research\\
-\small \href{https://irdme.com}{irdme.com}
-}
+\author{Vladi Ivanov}
 
 \date{June 2026}
 
@@ -208,8 +205,8 @@ checking $1{,}048{,}575$ generating sets with an average of $\approx 2{,}200$
 checks per second.
 The $K_{43}$ search checks the same $1{,}048{,}575$ candidates (since
 $\lfloor 43/2\rfloor = 21$) and completed in $415$ seconds ($\approx 7$ minutes).
-The code is publicly available at
-\url{https://github.com/vladi160/ramsey} (file \texttt{scripts/ramsey\_circulant.py}).
+The code is publicly available at \url{https://github.com/vladi160/ramsey}\\
+(file \texttt{scripts/ramsey\_circulant.py}).
 
 \section{FPL-Guided Search for Ramsey Colorings}
 \label{sec:fpl}
@@ -420,8 +417,10 @@ B_6\!=\!0,\; B_7\!=\!1,\; B_8\!=\!1,\; B_9\!=\!0,\; B_{10}\!=\!0
 \]
 \[
 C_0\!=\!1,\; C_1\!=\!0,\; C_2\!=\!0,\; C_3\!=\!1,\; C_4\!=\!0,\;
-C_5\!=\!1,\; C_6\!=\!0,\; C_7\!=\!0,\; C_8\!=\!1,\; C_9\!=\!0,\; C_{10}\!=\!1,
-\; C_{11}\!=\!1,\; C_{12}\!=\!0,\; C_{13}\!=\!0,\; C_{14}\!=\!0,\;
+C_5\!=\!1,\; C_6\!=\!0,\; C_7\!=\!0,\; C_8\!=\!1,\; C_9\!=\!0
+\]
+\[
+C_{10}\!=\!1,\; C_{11}\!=\!1,\; C_{12}\!=\!0,\; C_{13}\!=\!0,\; C_{14}\!=\!0,\;
 C_{15}\!=\!0,\; C_{16}\!=\!0,\; C_{17}\!=\!1,\; C_{18}\!=\!1,\; C_{19}\!=\!1,\; C_{20}\!=\!1
 \]
 Here 8 of 10 pairs $(A_k, B_k)$ satisfy $A_k + B_k = 1$ (complementary).
@@ -436,8 +435,10 @@ B_k\!=\!A_k \text{ for all } k=1,\ldots,10
 \]
 \[
 C_0\!=\!1,\; C_1\!=\!1,\; C_2\!=\!1,\; C_3\!=\!0,\; C_4\!=\!1,\;
-C_5\!=\!0,\; C_6\!=\!1,\; C_7\!=\!1,\; C_8\!=\!1,\; C_9\!=\!0,\; C_{10}\!=\!0,
-\; C_{11}\!=\!1,\; C_{12}\!=\!1,\; C_{13}\!=\!1,\; C_{14}\!=\!0,\;
+C_5\!=\!0,\; C_6\!=\!1,\; C_7\!=\!1,\; C_8\!=\!1,\; C_9\!=\!0
+\]
+\[
+C_{10}\!=\!0,\; C_{11}\!=\!1,\; C_{12}\!=\!1,\; C_{13}\!=\!1,\; C_{14}\!=\!0,\;
 C_{15}\!=\!0,\; C_{16}\!=\!0,\; C_{17}\!=\!1,\; C_{18}\!=\!1,\; C_{19}\!=\!1,\; C_{20}\!=\!0
 \]
 Here $B_k = A_k$ for all $k$: the within-half-0 and within-half-1 colorings
@@ -453,8 +454,10 @@ B_k\!=\!A_k \text{ for all } k=1,\ldots,10
 \]
 \[
 C_0\!=\!1,\; C_1\!=\!0,\; C_2\!=\!1,\; C_3\!=\!0,\; C_4\!=\!0,\;
-C_5\!=\!0,\; C_6\!=\!1,\; C_7\!=\!0,\; C_8\!=\!0,\; C_9\!=\!1,\; C_{10}\!=\!1,
-\; C_{11}\!=\!1,\; C_{12}\!=\!0,\; C_{13}\!=\!0,\; C_{14}\!=\!1,\;
+C_5\!=\!0,\; C_6\!=\!1,\; C_7\!=\!0,\; C_8\!=\!0,\; C_9\!=\!1
+\]
+\[
+C_{10}\!=\!1,\; C_{11}\!=\!1,\; C_{12}\!=\!0,\; C_{13}\!=\!0,\; C_{14}\!=\!1,\;
 C_{15}\!=\!1,\; C_{16}\!=\!0,\; C_{17}\!=\!0,\; C_{18}\!=\!1,\; C_{19}\!=\!0,\; C_{20}\!=\!1
 \]
 All three colorings achieve exactly 84 violations.
@@ -722,13 +725,15 @@ detect any differential role.
 
 \subsection{131- and 129-Violation $K_{43}$ Unconstrained}
 
-The 131-violation unconstrained coloring ($n=43$, tabu tenure 12, 1518 relations:
+{\sloppy
+The 131-violation unconstrained coloring ($n=43$, tabu tenure~12, 1518 relations:
 red=453, blue=450, violation=615) breaks the perfect symmetry.
 \texttt{red\_degree} ranges $[20,22]$; \texttt{violation\_count} ranges $[11,32]$
-with mean 15.2, a much wider spread than the bi-circulant.
-The 129-violation coloring (tabu tenure 25, same warm-start, 1529 relations:
-red=453, blue=450, violation=626) has \texttt{violation\_count} ranges $[11,29]$, mean~15.0,
-a slightly tighter spread as 2 violations are removed.
+with mean~15.2, a much wider spread than the bi-circulant.
+The 129-violation coloring (tabu tenure~25, same warm-start, 1529 relations:
+red=453, blue=450, violation=626) has \texttt{violation\_count} ranges $[11,29]$,
+mean~15.0, a slightly tighter spread as 2 violations are removed.
+\par}
 
 IRDME law: Pearson$(\text{red} \leftrightarrow \text{violation}) = +0.024$,
 $p = 0.88$ (not significant). FPL is absent: color-degree hubs do not predict
@@ -1047,21 +1052,25 @@ Computations were performed using the IRDME research platform.
 G.~Exoo,
 \newblock A lower bound for $R(5,5)$,
 \newblock {\em J.\ Graph Theory}, 13(1):97--98, 1989.
+\newblock \href{https://doi.org/10.1002/jgt.3190130113}{doi:10.1002/jgt.3190130113}
 
 \bibitem{angeltveit2024}
 V.~Angeltveit and B.~D.~McKay,
 \newblock $R(5,5) \leq 46$,
-\newblock \emph{arXiv preprint arXiv:2409.15709}, 2024.
+\newblock \emph{arXiv preprint}, 2024.
+\newblock \href{https://arxiv.org/abs/2409.15709}{arXiv:2409.15709}
 
 \bibitem{radziszowski}
 S.~Radziszowski,
 \newblock Small Ramsey numbers,
 \newblock {\em Electron.\ J.\ Combin.}, Dynamic Survey DS1, updated 2021.
+\newblock \href{https://www.combinatorics.org/ojs/index.php/eljc/article/view/DS1}{combinatorics.org/DS1}
 
 \bibitem{fpl2024}
 V.~Ivanov,
 \newblock The Functional Proximity Law: hub persistence across network layers,
-\newblock {\em arXiv preprint arXiv:2604.23639}, 2026.
+\newblock \emph{arXiv preprint}, 2026.
+\newblock \href{https://arxiv.org/abs/2604.23639}{arXiv:2604.23639}
 
 \end{thebibliography}
 
