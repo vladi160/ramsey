@@ -5,7 +5,7 @@ Code and data accompanying the paper:
 > **No Valid Ramsey(5,5;42) Coloring is Circulant on Z₄₂:  
 > An Exhaustive Proof with Z₂₁-Bi-Circulant Search and 84-Violation Record**  
 > Vladi Ivanov, 2026  
-> Paper: [`papers/ramsey_circulant_v1.pdf`](papers/ramsey_circulant_v1.pdf)
+> Paper: arXiv (forthcoming) · Zenodo (forthcoming)
 
 ---
 
@@ -184,7 +184,6 @@ scripts/
   ramsey_local.py         Python local search (reference implementation)
 rust/ramsey/              Rust tabu solver (~4,500 iters/s on K₄₂)
 datasets/                 Stored colorings (see table above)
-papers/                   Paper PDF and LaTeX source
 verify.py                 One-command reviewer verification
 ```
 
